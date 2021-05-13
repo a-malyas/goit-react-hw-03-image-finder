@@ -1,30 +1,45 @@
 import { Component } from 'react';
+import { fetchImages } from './services/api';
 import Searchbar from './components/Searchbar/Searchbar';
 import ImageGallery from './components/ImageGallery/ImageGallery';
 import './App.css';
-import axios from 'axios';
+import Button from './components/Button/Button';
+import Loader from "react-loader-spinner";
+import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
+import Modal from './components/Modal/Modal';
 
 class App extends Component {
   state = {
+    modalIsOpen: false,
     searchQuery: '',
     images: [],
+    nextPage: 1,
     isLoading: false,
     page: 1
   };
 
-  componentDidMount() {
-    const API_KEY = '20657531-55ab2713c33e5dcd49ca55cc6';
-    const BASE_URL = 'https://pixabay.com/api/';
-    this.setState({ isLoading: true });
-    axios
-    .get(`${BASE_URL}?key=${API_KEY}&q=${this.searchQuery}&page=${this.page}&per_page=12&image_type=photo&pretty=true`)
-    .then(({data}) => this.setState({ images: data, isLoading: false, }))
-    .catch (error => console.log(error));
-    // .then(data => {
-    //   this.page += 1;
+  componentDidUpdate(prevProps, prevState) {
+    if (prevState.searchQuery !== this.state.searchQuery) this.loadPage();
+  }
 
-    //   return data.hits;
-    // });
+  loadPage = () => {
+    this.setState({ isLoading: true });
+    fetchImages(this.state.searchQuery, this.state.nextPage)
+      .then(newArray => this.setState(prevState => {
+        return ({
+          images: [...prevState.images, ...newArray],
+          nextPage: prevState.nextPage + 1,
+        })
+      }))
+      .catch(error => console.log(error))
+      .finally(() => {
+        this.setState({ isLoading: false });
+        if (this.state.nextPage > 2)
+          window.scrollTo({
+            top: document.documentElement.scrollHeight,
+            behavior: 'smooth',
+          });
+      })
   }
 
   onSubmit = (query) => {
@@ -32,15 +47,42 @@ class App extends Component {
     this.setState({
       searchQuery: query,
       images: [],
+      largeImageURL: '',
+    });
+  };
+
+  onThumbClick = (event) => {
+    this.setState({
+      modalIsOpen: true,
+      largeImageURL: event.target.dataset.largeimageurl
     });
   }
 
+  onModalClick = (event) => {
+    if (event.target === event.currentTarget)
+      this.setState({ modalIsOpen: false });
+  }
+
+  onEscClick = (event) => {
+    if (event.code === 'Escape')
+      this.setState({ modalIsOpen: false });
+  }
+
   render() {
-    const { images, isLoading } = this.state;
+    const { modalIsOpen, largeImageURL, images, isLoading } = this.state;
     return (
       <div>
         <Searchbar onSubmit={this.onSubmit} />
-        <ImageGallery images={images} isLoading={isLoading}/>;
+        <ImageGallery images={images} onClick={this.onThumbClick} isLoading={isLoading} />
+        {isLoading && (
+          <div className="loader">
+            <Loader
+              type="Circles" color="#00BFFF" height={80} width={80}
+            />
+          </div>
+        )}
+        {images.length > 0 && <Button onClick={this.loadPage} />}
+        {modalIsOpen && <Modal imageUrl={largeImageURL} onModalClick={this.onModalClick} onEscClick={this.onEscClick} />}
       </div>
     );
   };
